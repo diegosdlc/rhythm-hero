@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rhythm Hero</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- Audio tracks (loaded as HTML elements — works with file://) -->
+  <audio id="audio-instrumental" src="Instrumental.mp3" preload="auto"></audio>
+  <audio id="audio-vocal"         src="Vocal.mp3"         preload="auto"></audio>
+
+  <!-- START SCREEN -->
+  <div id="screen-start" class="screen active">
+    <div class="screen-content">
+      <div class="logo-glow">♪</div>
+      <h1 class="game-title">RHYTHM HERO</h1>
+      <p class="subtitle">Mueve el cursor para alcanzar las notas</p>
+      <div class="controls-hint">
+        <div class="hint-item">🖱 Movimiento vertical del ratón</div>
+        <div class="hint-item">🎵 Mantén el cursor sobre las notas</div>
+        <div class="hint-item">🎤 Tu precisión afina la voz</div>
+      </div>
+      <button id="btn-start" class="btn-primary">▶ INICIAR</button>
+    </div>
+  </div>
+
+
+  <!-- GAME SCREEN -->
+  <div id="screen-game" class="screen">
+    <!-- HUD -->
+    <div id="hud">
+      <div id="hud-left">
+        <div id="combo-display">
+          <span id="combo-value">0</span>
+          <span class="combo-label">COMBO</span>
+        </div>
+      </div>
+      <div id="hud-center">
+        <div id="accuracy-bar-wrap">
+          <div id="accuracy-bar-fill"></div>
+        </div>
+        <span id="accuracy-text">100%</span>
+      </div>
+      <div id="hud-right">
+        <div id="score-display">
+          <span class="score-label">SCORE</span>
+          <span id="score-value">0</span>
+        </div>
+        <button id="btn-pause" title="Pausar (Esc)">⏸</button>
+      </div>
+    </div>
+
+    <!-- CANVAS -->
+    <canvas id="game-canvas"></canvas>
+  </div>
+
+  <!-- PAUSE SCREEN -->
+  <div id="screen-pause" class="screen">
+    <div class="screen-content pause-content">
+      <div class="pause-icon">⏸</div>
+      <h2 class="pause-title">PAUSA</h2>
+      <button id="btn-resume" class="btn-primary">▶ CONTINUAR</button>
+      <button id="btn-quit" class="btn-secondary">✕ SALIR AL MENÚ</button>
+    </div>
+  </div>
+
+  <!-- RESULT SCREEN -->
+  <div id="screen-result" class="screen">
+    <div class="screen-content">
+      <h2 class="result-title">RESULTADO FINAL</h2>
+      <div class="result-grade" id="result-grade">S</div>
+      <div class="result-stats">
+        <div class="stat-row"><span>Score</span><span id="res-score">0</span></div>
+        <div class="stat-row"><span>Precisión</span><span id="res-accuracy">0%</span></div>
+        <div class="stat-row"><span>Max Combo</span><span id="res-combo">0</span></div>
+        <div class="stat-row perfect"><span>PERFECT</span><span id="res-perfect">0</span></div>
+        <div class="stat-row great"><span>GREAT</span><span id="res-great">0</span></div>
+        <div class="stat-row good"><span>GOOD</span><span id="res-good">0</span></div>
+        <div class="stat-row miss"><span>MISS</span><span id="res-miss">0</span></div>
+      </div>
+      <button id="btn-restart" class="btn-primary">↺ VOLVER A JUGAR</button>
+    </div>
+  </div>
+
+  <script src="beatmap.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>
