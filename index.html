@@ -1,94 +1,87 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Rhythm Hero</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Rhythm Hero MVP</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-
-  <!-- Audio tracks (loaded as HTML elements — works with file://) -->
   <audio id="audio-instrumental" src="Instrumental.mp3" preload="auto"></audio>
-  <audio id="audio-vocal"         src="Vocal.mp3"         preload="auto"></audio>
+  <audio id="audio-vocal" src="Vocal.mp3" preload="auto"></audio>
 
-  <!-- START SCREEN -->
-  <div id="screen-start" class="screen active">
-    <div class="screen-content">
-      <div class="logo-glow">♪</div>
-      <h1 class="game-title">RHYTHM HERO</h1>
-      <p class="subtitle">Mueve el cursor para alcanzar las notas</p>
-      <div class="controls-hint">
-        <div class="hint-item">🖱 Movimiento vertical del ratón</div>
-        <div class="hint-item">🎵 Mantén el cursor sobre las notas</div>
-        <div class="hint-item">🎤 Tu precisión afina la voz</div>
+  <section id="screen-start" class="screen active">
+    <div class="panel start-panel">
+      <div class="eyebrow">PLATFORM MVP</div>
+      <h1>RHYTHM HERO</h1>
+      <p>Seven-note rhythm gameplay plus simultaneous interruptions.</p>
+      <div class="controls-copy">
+        <span><strong>Keyboard:</strong> A–G notes</span>
+        <span><strong>Interruptions:</strong> arrows + Enter</span>
+        <span><strong>Gamepad:</strong> buttons 0–6 + D-pad</span>
+        <span><strong>Touch:</strong> seven persistent note buttons</span>
       </div>
-      <button id="btn-start" class="btn-primary">▶ INICIAR</button>
+      <button id="btn-start" class="primary">START DEMO</button>
     </div>
-  </div>
+  </section>
 
-
-  <!-- GAME SCREEN -->
-  <div id="screen-game" class="screen">
-    <!-- HUD -->
-    <div id="hud">
-      <div id="hud-left">
-        <div id="combo-display">
-          <span id="combo-value">0</span>
-          <span class="combo-label">COMBO</span>
-        </div>
-      </div>
-      <div id="hud-center">
-        <div id="accuracy-bar-wrap">
-          <div id="accuracy-bar-fill"></div>
-        </div>
-        <span id="accuracy-text">100%</span>
-      </div>
-      <div id="hud-right">
-        <div id="score-display">
-          <span class="score-label">SCORE</span>
-          <span id="score-value">0</span>
-        </div>
-        <button id="btn-pause" title="Pausar (Esc)">⏸</button>
-      </div>
-    </div>
-
-    <!-- CANVAS -->
+  <section id="screen-game" class="screen">
     <canvas id="game-canvas"></canvas>
-  </div>
 
-  <!-- PAUSE SCREEN -->
-  <div id="screen-pause" class="screen">
-    <div class="screen-content pause-content">
-      <div class="pause-icon">⏸</div>
-      <h2 class="pause-title">PAUSA</h2>
-      <button id="btn-resume" class="btn-primary">▶ CONTINUAR</button>
-      <button id="btn-quit" class="btn-secondary">✕ SALIR AL MENÚ</button>
-    </div>
-  </div>
+    <header id="hud">
+      <div><small>SCORE</small><strong id="score-value">0</strong></div>
+      <div><small>COMBO</small><strong id="combo-value">0</strong></div>
+      <div><small>ACCURACY</small><strong id="accuracy-value">100%</strong></div>
+      <div><small>TIME</small><strong id="time-value">0.00</strong></div>
+    </header>
 
-  <!-- RESULT SCREEN -->
-  <div id="screen-result" class="screen">
-    <div class="screen-content">
-      <h2 class="result-title">RESULTADO FINAL</h2>
-      <div class="result-grade" id="result-grade">S</div>
-      <div class="result-stats">
-        <div class="stat-row"><span>Score</span><span id="res-score">0</span></div>
-        <div class="stat-row"><span>Precisión</span><span id="res-accuracy">0%</span></div>
-        <div class="stat-row"><span>Max Combo</span><span id="res-combo">0</span></div>
-        <div class="stat-row perfect"><span>PERFECT</span><span id="res-perfect">0</span></div>
-        <div class="stat-row great"><span>GREAT</span><span id="res-great">0</span></div>
-        <div class="stat-row good"><span>GOOD</span><span id="res-good">0</span></div>
-        <div class="stat-row miss"><span>MISS</span><span id="res-miss">0</span></div>
+    <aside id="interruption" aria-live="polite">
+      <small id="interruption-title">MESSAGE</small>
+      <h2 id="interruption-text"></h2>
+      <div id="interruption-options"></div>
+      <p class="hint">↑ ↓ + Enter, or tap an option</p>
+    </aside>
+
+    <div id="pause-layer">
+      <div class="panel">
+        <h2>PAUSED</h2>
+        <button id="btn-resume" class="primary">RESUME</button>
       </div>
-      <button id="btn-restart" class="btn-primary">↺ VOLVER A JUGAR</button>
     </div>
-  </div>
 
-  <script src="beatmap.js"></script>
-  <script src="game.js"></script>
+    <div id="touch-controls" aria-label="Touch controls">
+      <button data-action="NOTE_1">A</button>
+      <button data-action="NOTE_2">B</button>
+      <button data-action="NOTE_3">C</button>
+      <button data-action="NOTE_4">D</button>
+      <button data-action="NOTE_5">E</button>
+      <button data-action="NOTE_6">F</button>
+      <button data-action="NOTE_7">G</button>
+    </div>
+  </section>
+
+  <section id="screen-result" class="screen">
+    <div class="panel result-panel">
+      <div class="eyebrow">SESSION COMPLETE</div>
+      <h1>RESULT</h1>
+      <div class="result-grid">
+        <div><small>SCORE</small><strong id="result-score">0</strong></div>
+        <div><small>ACCURACY</small><strong id="result-accuracy">0%</strong></div>
+        <div><small>MAX COMBO</small><strong id="result-combo">0</strong></div>
+      </div>
+      <small>DECISIONS</small>
+      <pre id="result-decisions">{}</pre>
+      <div class="result-actions">
+        <button id="btn-restart" class="primary">PLAY AGAIN</button>
+        <button id="btn-menu">MENU</button>
+      </div>
+    </div>
+  </section>
+
+  <script src="src/core.js"></script>
+  <script src="src/input.js"></script>
+  <script src="src/bridge.js"></script>
+  <script src="levels/demo/level.js"></script>
+  <script src="src/app.js"></script>
 </body>
 </html>
