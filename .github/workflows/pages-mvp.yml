@@ -1,0 +1,46 @@
+name: Deploy MVP to GitHub Pages
+
+on:
+  push:
+    branches:
+      - feature/mvp-platform-core
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v6
+        with:
+          # If PAGES_TOKEN is configured, configure-pages can create/enable the
+          # Pages site on first run. GitHub's automatic GITHUB_TOKEN cannot do
+          # first-time Pages enablement.
+          token: ${{ secrets.PAGES_TOKEN || github.token }}
+          enablement: ${{ secrets.PAGES_TOKEN != '' }}
+
+      - name: Upload static site
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: .
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+# Triggered after configuring PAGES_TOKEN.
