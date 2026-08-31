@@ -2,6 +2,31 @@
   'use strict';
 
   const RH = global.RhythmHero;
+  const MOUTH_FRAMES = [
+    'assets/mouth/mouth-closed.png',
+    'assets/mouth/mouth-half.png',
+    'assets/mouth/mouth-open.png',
+    'assets/mouth/mouth-half.png'
+  ];
+
+  class MouthAnimator {
+    constructor(root, frame) {
+      this.root = root;
+      this.frame = frame;
+      this.currentFrame = -1;
+      MOUTH_FRAMES.forEach(src => { const image = new Image(); image.src = src; });
+    }
+    update(session) {
+      const isHolding = session.state === 'playing' && session.rhythm.notes.some(note => note.state === 'holding');
+      const frameIndex = isHolding ? Math.floor(session.now() / 0.12) % MOUTH_FRAMES.length : 0;
+      if (frameIndex !== this.currentFrame) {
+        this.frame.src = MOUTH_FRAMES[frameIndex];
+        this.currentFrame = frameIndex;
+      }
+      this.root.classList.toggle('is-holding', isHolding);
+    }
+  }
+  RH.MouthAnimator = MouthAnimator;
 
   class GenericRenderer {
     constructor(canvas, level) {
@@ -78,6 +103,10 @@
       this.session = new RH.GameSession(this.level, this.clock, this.bridge);
       this.canvas = document.getElementById('game-canvas');
       this.renderer = new GenericRenderer(this.canvas, this.level);
+      this.mouthAnimator = new MouthAnimator(
+        document.getElementById('singing-mouth'),
+        document.getElementById('singing-mouth-frame')
+      );
       this.router = new RH.InputRouter(() => this.session.now());
       this.router.onInput(evt => this.session.handleInput(evt));
       this.router.add(new RH.KeyboardInputAdapter());
@@ -170,6 +199,7 @@
       this.router.update();
       this.session.update();
       if (this.session.state === 'playing' || this.session.state === 'paused') this.renderer.draw(this.session);
+      this.mouthAnimator.update(this.session);
       this._updateHUD();
       this._updateInterruption();
       this._updateScreens();
