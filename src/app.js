@@ -2,6 +2,35 @@
   'use strict';
 
   const RH = global.RhythmHero;
+  const MOUTH_FRAMES = [
+    'assets/mouth/mouth-closed.png',
+    'assets/mouth/mouth-half.png',
+    'assets/mouth/mouth-open.png',
+    'assets/mouth/mouth-half.png'
+  ];
+
+  class MouthAnimator {
+    constructor(root, frame) {
+      this.root = root;
+      this.frame = frame;
+      this.currentFrame = -1;
+      MOUTH_FRAMES.forEach(src => { const image = new Image(); image.src = src; });
+    }
+    update(session, position) {
+      const isOnPitch = session.state === 'playing' && session.rhythm.isOnPitch;
+      const frameIndex = isOnPitch ? Math.floor(session.now() / 0.12) % MOUTH_FRAMES.length : 0;
+      if (frameIndex !== this.currentFrame) {
+        this.frame.src = MOUTH_FRAMES[frameIndex];
+        this.currentFrame = frameIndex;
+      }
+      if (position) {
+        this.root.style.left = `${position.x}px`;
+        this.root.style.top = `${position.y}px`;
+      }
+      this.root.classList.toggle('is-holding', isOnPitch);
+    }
+  }
+  RH.MouthAnimator = MouthAnimator;
 
   class GenericRenderer {
     constructor(canvas, level) {
@@ -21,6 +50,20 @@
       this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       this.lastWidth = rect.width; this.lastHeight = rect.height;
     }
+    playfield() {
+      return {
+        top: 70,
+        bottom: this.lastHeight - 90,
+        hitX: Math.max(90, this.lastWidth * 0.18)
+      };
+    }
+    cursorPosition(pitch) {
+      const field = this.playfield();
+      return {
+        x: field.hitX,
+        y: field.top + (field.bottom - field.top) * Math.max(0, Math.min(1, pitch))
+      };
+    }
     draw(session) {
       this.resize();
       const ctx = this.ctx, W = this.lastWidth, H = this.lastHeight;
@@ -28,44 +71,50 @@
       ctx.clearRect(0, 0, W, H);
       ctx.fillStyle = '#10131a'; ctx.fillRect(0, 0, W, H);
 
-      const laneTop = 70, laneBottom = H - 90;
-      const laneH = (laneBottom - laneTop) / 7;
-      const hitX = Math.max(90, W * 0.18);
+      const field = this.playfield();
+      const playTop = field.top, playBottom = field.bottom, hitX = field.hitX;
       const horizon = 2.5;
 
-      ctx.font = '600 13px system-ui, sans-serif';
-      for (let i = 0; i < 7; i++) {
-        const y = laneTop + laneH * i;
-        ctx.fillStyle = i % 2 ? '#151a24' : '#121720';
-        ctx.fillRect(0, y, W, laneH);
-        ctx.strokeStyle = '#283141'; ctx.strokeRect(0, y, W, laneH);
-        const action = `NOTE_${i + 1}`;
-        ctx.fillStyle = '#aeb8c8';
-        ctx.fillText(`${this.level.noteMapping[action]}  (${i + 1})`, 16, y + laneH * 0.58);
+      const gradient = ctx.createLinearGradient(0, playTop, 0, playBottom);
+      gradient.addColorStop(0, '#171d29');
+      gradient.addColorStop(0.5, '#111722');
+      gradient.addColorStop(1, '#171d29');
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, playTop, W, playBottom - playTop);
+      ctx.strokeStyle = 'rgba(143, 160, 185, .12)';
+      ctx.lineWidth = 1;
+      for (let i = 1; i < 5; i++) {
+        const y = playTop + (playBottom - playTop) * i / 5;
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
       }
 
-      ctx.strokeStyle = '#f1f5f9'; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.moveTo(hitX, laneTop); ctx.lineTo(hitX, laneBottom); ctx.stroke();
+      ctx.strokeStyle = 'rgba(241, 245, 249, .9)'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(hitX, playTop); ctx.lineTo(hitX, playBottom); ctx.stroke();
 
       for (const note of session.rhythm.activeState(t, horizon)) {
         if (note.state === 'hit' || note.state === 'miss') continue;
-        const idx = Number(note.note.split('_')[1]) - 1;
-        const y = laneTop + laneH * idx + laneH * 0.15;
+        const fallbackIndex = Math.max(0, Number(String(note.note).split('_')[1]) - 1 || 0);
+        const notePitch = Number.isFinite(note.y) ? note.y : (fallbackIndex + 0.5) / 7;
+        const y = playTop + (playBottom - playTop) * notePitch;
         const x = hitX + ((note.time - t) / horizon) * (W - hitX - 30);
         const width = note.duration > 0 ? Math.max(28, note.duration / horizon * (W - hitX - 30)) : 28;
-        ctx.fillStyle = note.state === 'holding' ? '#8b5cf6' : '#4f6cff';
-        ctx.fillRect(x, y, width, laneH * 0.7);
+        const height = note.state === 'holding' ? 24 : 20;
+        ctx.fillStyle = note.state === 'holding' ? '#f472b6' : '#667cff';
+        ctx.beginPath();
+        if (ctx.roundRect) ctx.roundRect(x, y - height / 2, width, height, height / 2);
+        else ctx.rect(x, y - height / 2, width, height);
+        ctx.fill();
         ctx.fillStyle = '#fff'; ctx.font = '700 14px system-ui, sans-serif';
-        ctx.fillText(this.level.noteMapping[note.note], x + 8, y + laneH * 0.43);
+        ctx.fillText(this.level.noteMapping[note.note], x + 8, y + 5);
         if (note.lyric) {
           ctx.font = '12px system-ui, sans-serif';
-          ctx.fillText(note.lyric, x + 28, y + laneH * 0.43);
+          ctx.fillText(note.lyric, x + 28, y + 5);
         }
       }
 
       if (session.lastJudgement && t - session.lastJudgement.time < 0.55) {
         ctx.font = '800 28px system-ui, sans-serif';
-        ctx.fillStyle = '#fff'; ctx.fillText(session.lastJudgement.grade, hitX + 18, laneTop - 24);
+        ctx.fillStyle = '#fff'; ctx.fillText(session.lastJudgement.grade, hitX + 18, playTop - 24);
       }
     }
   }
@@ -78,13 +127,22 @@
       this.session = new RH.GameSession(this.level, this.clock, this.bridge);
       this.canvas = document.getElementById('game-canvas');
       this.renderer = new GenericRenderer(this.canvas, this.level);
+      this.mouthAnimator = new MouthAnimator(
+        document.getElementById('singing-mouth'),
+        document.getElementById('singing-mouth-frame')
+      );
       this.router = new RH.InputRouter(() => this.session.now());
-      this.router.onInput(evt => this.session.handleInput(evt));
+      this.router.onInput(evt => {
+        this.session.handleInput(evt);
+        this._setInputMode(evt.source);
+      });
       this.router.add(new RH.KeyboardInputAdapter());
       this.router.add(new RH.GamepadInputAdapter());
-      this.router.add(new RH.TouchInputAdapter(document.getElementById('touch-controls')));
+      this.router.add(new RH.PointerPitchInputAdapter(document.getElementById('screen-game')));
 
-      this.lastInterruptionId = null;
+      this.lastInterruptionSignature = null;
+      const prefersTouch = (global.matchMedia && global.matchMedia('(pointer: coarse)').matches) || global.innerWidth <= 620;
+      this._setInputMode(prefersTouch ? 'touch' : 'mouse');
       this._bindUI();
       this._bindHostCommands();
       this._loop = this._loop.bind(this);
@@ -123,6 +181,11 @@
       document.getElementById(id).classList.add('active');
     }
 
+    _setInputMode(source) {
+      const mode = source === 'gamepad' ? 'gamepad' : source === 'touch' ? 'touch' : 'desktop';
+      document.body.dataset.inputMode = mode;
+    }
+
     _updateHUD() {
       const s = this.session.score.snapshot();
       document.getElementById('score-value').textContent = s.score.toLocaleString();
@@ -135,9 +198,11 @@
       const e = this.session.interruptions.current();
       const overlay = document.getElementById('interruption');
       if (!e) {
-        overlay.classList.remove('visible'); this.lastInterruptionId = null; return;
+        overlay.classList.remove('visible'); this.lastInterruptionSignature = null; return;
       }
       overlay.classList.add('visible');
+      const signature = `${e.id}:${e.selectedIndex}`;
+      if (signature === this.lastInterruptionSignature) return;
       document.getElementById('interruption-title').textContent = e.title || e.type;
       document.getElementById('interruption-text').textContent = e.text || '';
       const options = document.getElementById('interruption-options');
@@ -146,10 +211,14 @@
         const btn = document.createElement('button');
         btn.dataset.choice = option.id;
         btn.className = index === e.selectedIndex ? 'selected' : '';
-        btn.textContent = option.label;
+        const key = document.createElement('kbd');
+        key.textContent = String(index + 1);
+        const label = document.createElement('span');
+        label.textContent = option.label;
+        btn.append(key, label);
         options.appendChild(btn);
       });
-      this.lastInterruptionId = e.id;
+      this.lastInterruptionSignature = signature;
     }
 
     _updateScreens() {
@@ -170,6 +239,7 @@
       this.router.update();
       this.session.update();
       if (this.session.state === 'playing' || this.session.state === 'paused') this.renderer.draw(this.session);
+      this.mouthAnimator.update(this.session, this.renderer.cursorPosition(this.session.pitch));
       this._updateHUD();
       this._updateInterruption();
       this._updateScreens();

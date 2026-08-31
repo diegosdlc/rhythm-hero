@@ -14,12 +14,12 @@
     <div class="panel start-panel">
       <div class="eyebrow">PLATFORM MVP</div>
       <h1>RHYTHM HERO</h1>
-      <p>Seven-note rhythm gameplay plus simultaneous interruptions.</p>
+      <p>Continuous-pitch rhythm gameplay plus simultaneous interruptions.</p>
       <div class="controls-copy">
-        <span><strong>Keyboard:</strong> A–G notes</span>
-        <span><strong>Interruptions:</strong> arrows + Enter</span>
-        <span><strong>Gamepad:</strong> buttons 0–6 + D-pad</span>
-        <span><strong>Touch:</strong> seven persistent note buttons</span>
+        <span><strong>PC:</strong> move the mouse vertically to control pitch</span>
+        <span><strong>PC interruptions:</strong> W/S + Space, or keys 1–4</span>
+        <span><strong>Gamepad:</strong> left stick for pitch; right stick + A for interruptions</span>
+        <span><strong>Touch:</strong> drag on the left; tap interruptions on the right</span>
       </div>
       <button id="btn-start" class="primary">START DEMO</button>
     </div>
@@ -27,6 +27,10 @@
 
   <section id="screen-game" class="screen">
     <canvas id="game-canvas"></canvas>
+
+    <div id="singing-mouth" aria-hidden="true">
+      <img id="singing-mouth-frame" src="assets/mouth/mouth-closed.png" alt="" />
+    </div>
 
     <header id="hud">
       <div><small>SCORE</small><strong id="score-value">0</strong></div>
@@ -39,7 +43,7 @@
       <small id="interruption-title">MESSAGE</small>
       <h2 id="interruption-text"></h2>
       <div id="interruption-options"></div>
-      <p class="hint">↑ ↓ + Enter, or tap an option</p>
+      <p class="hint">W/S + Space · Right stick + A · Tap an option</p>
     </aside>
 
     <div id="pause-layer">
@@ -49,14 +53,10 @@
       </div>
     </div>
 
-    <div id="touch-controls" aria-label="Touch controls">
-      <button data-action="NOTE_1">A</button>
-      <button data-action="NOTE_2">B</button>
-      <button data-action="NOTE_3">C</button>
-      <button data-action="NOTE_4">D</button>
-      <button data-action="NOTE_5">E</button>
-      <button data-action="NOTE_6">F</button>
-      <button data-action="NOTE_7">G</button>
+    <div id="input-guide" aria-live="polite">
+      <span data-mode="desktop">↕ MOVE MOUSE FOR PITCH · W/S + SPACE FOR INTERRUPTIONS</span>
+      <span data-mode="gamepad">↕ LEFT STICK FOR PITCH · RIGHT STICK + A FOR INTERRUPTIONS</span>
+      <span data-mode="touch">↕ DRAG ON THE LEFT FOR PITCH · TAP INTERRUPTIONS ON THE RIGHT</span>
     </div>
   </section>
 

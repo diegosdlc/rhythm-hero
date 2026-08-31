@@ -4,6 +4,8 @@
   const RH = global.RhythmHero = global.RhythmHero || {};
   const A = RH.ACTIONS;
 
+  function clamp(value, min, max) { return Math.max(min, Math.min(max, value)); }
+
   class InputRouter {
     constructor(getTime) {
       this.getTime = getTime;
@@ -11,25 +13,43 @@
       this.adapters = [];
     }
     onInput(fn) { this.listeners.push(fn); }
-    emit(action, phase, source) {
+    emit(action, phase, source, detail) {
       if (!action) return;
-      const evt = { action, phase, source, timestamp: this.getTime ? this.getTime() : 0 };
+      const evt = Object.assign({
+        action, phase, source,
+        timestamp: this.getTime ? this.getTime() : 0
+      }, detail || {});
       for (const fn of this.listeners) fn(evt);
     }
     add(adapter) { adapter.attach(this); this.adapters.push(adapter); return adapter; }
-    update() { for (const a of this.adapters) if (a.update) a.update(); }
-    destroy() { for (const a of this.adapters) if (a.destroy) a.destroy(); this.adapters = []; }
+    update() { for (const adapter of this.adapters) if (adapter.update) adapter.update(); }
+    destroy() { for (const adapter of this.adapters) if (adapter.destroy) adapter.destroy(); this.adapters = []; }
+  }
+
+  class PitchController {
+    constructor(router, source) {
+      this.router = router;
+      this.source = source;
+      this.pitch = null;
+    }
+    setPitch(position) {
+      const nextPitch = clamp(position, 0, 1);
+      if (this.pitch !== null && Math.abs(nextPitch - this.pitch) < 0.0001) return;
+      this.pitch = nextPitch;
+      this.router.emit(A.PITCH, 'changed', this.source, { pitch: nextPitch });
+    }
   }
 
   class KeyboardInputAdapter {
     constructor() {
       this.down = new Set();
       this.map = {
-        KeyA: A.NOTE_1, KeyB: A.NOTE_2, KeyC: A.NOTE_3, KeyD: A.NOTE_4,
-        KeyE: A.NOTE_5, KeyF: A.NOTE_6, KeyG: A.NOTE_7,
+        KeyW: A.NAV_PREVIOUS, KeyS: A.NAV_NEXT,
         ArrowUp: A.NAV_PREVIOUS, ArrowLeft: A.NAV_PREVIOUS,
         ArrowDown: A.NAV_NEXT, ArrowRight: A.NAV_NEXT,
-        Enter: A.CONFIRM, Space: A.CONFIRM, Escape: A.PAUSE
+        Enter: A.CONFIRM, Space: A.CONFIRM,
+        Digit1: A.OPTION_1, Digit2: A.OPTION_2, Digit3: A.OPTION_3, Digit4: A.OPTION_4,
+        Escape: A.PAUSE
       };
     }
     attach(router) {
@@ -38,7 +58,7 @@
         const action = this.map[e.code];
         if (!action || this.down.has(e.code)) return;
         this.down.add(e.code);
-        if (action.indexOf('NOTE_') === 0 || action.indexOf('NAV_') === 0 || action === A.CONFIRM || action === A.PAUSE) e.preventDefault();
+        e.preventDefault();
         router.emit(action, 'pressed', 'keyboard');
       };
       this.keyup = e => {
@@ -47,80 +67,119 @@
         this.down.delete(e.code);
         router.emit(action, 'released', 'keyboard');
       };
-      window.addEventListener('keydown', this.keydown, { passive: false });
-      window.addEventListener('keyup', this.keyup);
+      global.addEventListener('keydown', this.keydown, { passive: false });
+      global.addEventListener('keyup', this.keyup);
     }
     destroy() {
-      window.removeEventListener('keydown', this.keydown);
-      window.removeEventListener('keyup', this.keyup);
+      global.removeEventListener('keydown', this.keydown);
+      global.removeEventListener('keyup', this.keyup);
     }
   }
 
-  class GamepadInputAdapter {
-    constructor() { this.prev = {}; this.buttonMap = [A.NOTE_1, A.NOTE_2, A.NOTE_3, A.NOTE_4, A.NOTE_5, A.NOTE_6, A.NOTE_7, A.CONFIRM]; }
-    attach(router) { this.router = router; }
-    update() {
-      const pads = navigator.getGamepads ? navigator.getGamepads() : [];
-      for (const pad of pads) {
-        if (!pad) continue;
-        const key = pad.index;
-        const prev = this.prev[key] || { buttons: [], axisY: 0 };
-        for (let i = 0; i < this.buttonMap.length; i++) {
-          const pressed = !!(pad.buttons[i] && pad.buttons[i].pressed);
-          const was = !!prev.buttons[i];
-          if (pressed !== was) this.router.emit(this.buttonMap[i], pressed ? 'pressed' : 'released', 'gamepad');
-          prev.buttons[i] = pressed;
-        }
-        // Standard d-pad buttons 12/13 plus left-stick vertical as navigation.
-        for (const pair of [[12, A.NAV_PREVIOUS], [13, A.NAV_NEXT]]) {
-          const idx = pair[0], action = pair[1];
-          const pressed = !!(pad.buttons[idx] && pad.buttons[idx].pressed);
-          const was = !!prev.buttons[idx];
-          if (pressed && !was) this.router.emit(action, 'pressed', 'gamepad');
-          prev.buttons[idx] = pressed;
-        }
-        const y = pad.axes[1] || 0;
-        const zone = y < -0.65 ? -1 : y > 0.65 ? 1 : 0;
-        if (zone !== prev.axisY && zone !== 0) this.router.emit(zone < 0 ? A.NAV_PREVIOUS : A.NAV_NEXT, 'pressed', 'gamepad');
-        prev.axisY = zone;
-        this.prev[key] = prev;
-      }
+  class PointerPitchInputAdapter {
+    constructor(root, options) {
+      this.root = root;
+      this.options = Object.assign({ topInset: 70, bottomInset: 90, touchWidth: 0.55 }, options || {});
+      this.activePointer = null;
     }
-  }
-
-  class TouchInputAdapter {
-    constructor(root) { this.root = root; this.active = new Map(); }
     attach(router) {
       this.router = router;
+      this.controllers = {
+        mouse: new PitchController(router, 'mouse'),
+        touch: new PitchController(router, 'touch'),
+        pen: new PitchController(router, 'touch')
+      };
+      this.move = e => {
+        const type = this._pointerType(e);
+        if (type !== 'mouse' && this.activePointer !== e.pointerId) return;
+        if (!this._accepts(e, type, type === 'mouse')) return;
+        this.controllers[type].setPitch(this._pitch(e));
+      };
       this.down = e => {
-        const button = e.target.closest('[data-action]');
-        if (!button) return;
+        const type = this._pointerType(e);
+        if ((type === 'mouse' && e.button !== 0) || !this._accepts(e, type, false)) return;
         e.preventDefault();
-        const action = button.dataset.action;
-        this.active.set(e.pointerId, action);
-        button.setPointerCapture && button.setPointerCapture(e.pointerId);
-        router.emit(action, 'pressed', 'touch');
+        this.activePointer = e.pointerId;
+        this.controllers[type].setPitch(this._pitch(e));
+        if (this.root.setPointerCapture) this.root.setPointerCapture(e.pointerId);
       };
       this.up = e => {
-        const action = this.active.get(e.pointerId);
-        if (!action) return;
+        if (this.activePointer !== e.pointerId) return;
         e.preventDefault();
-        this.active.delete(e.pointerId);
-        router.emit(action, 'released', 'touch');
+        this.activePointer = null;
       };
+      this.root.addEventListener('pointermove', this.move, { passive: false });
       this.root.addEventListener('pointerdown', this.down, { passive: false });
       this.root.addEventListener('pointerup', this.up, { passive: false });
       this.root.addEventListener('pointercancel', this.up, { passive: false });
     }
+    _pointerType(e) {
+      return e.pointerType === 'touch' || e.pointerType === 'pen' ? e.pointerType : 'mouse';
+    }
+    _accepts(e, type, allowMouseMove) {
+      if (e.target && e.target.closest && e.target.closest('#interruption, #pause-layer, button')) return false;
+      if (type === 'mouse') return allowMouseMove || e.button === 0;
+      const rect = this.root.getBoundingClientRect();
+      return e.clientX - rect.left <= rect.width * this.options.touchWidth;
+    }
+    _pitch(e) {
+      const rect = this.root.getBoundingClientRect();
+      const top = rect.top + this.options.topInset;
+      const height = Math.max(1, rect.height - this.options.topInset - this.options.bottomInset);
+      const position = clamp((e.clientY - top) / height, 0, 1);
+      return position;
+    }
     destroy() {
+      this.root.removeEventListener('pointermove', this.move);
       this.root.removeEventListener('pointerdown', this.down);
       this.root.removeEventListener('pointerup', this.up);
       this.root.removeEventListener('pointercancel', this.up);
     }
   }
 
+  class GamepadInputAdapter {
+    constructor() {
+      this.previous = {};
+      this.controllers = {};
+    }
+    attach(router) { this.router = router; }
+    update() {
+      const pads = global.navigator && global.navigator.getGamepads ? global.navigator.getGamepads() : [];
+      for (const pad of pads) {
+        if (!pad) continue;
+        const key = pad.index;
+        const previous = this.previous[key] || { buttons: {}, rightStickZone: 0 };
+        const controller = this.controllers[key] || new PitchController(this.router, 'gamepad');
+        this.controllers[key] = controller;
+
+        const leftY = pad.axes[1] || 0;
+        const pitch = (clamp(leftY, -1, 1) + 1) / 2;
+        controller.setPitch(pitch);
+
+        const rightY = pad.axes[3] || 0;
+        const rightStickZone = rightY < -0.6 ? -1 : rightY > 0.6 ? 1 : 0;
+        if (rightStickZone !== previous.rightStickZone && rightStickZone !== 0) {
+          this.router.emit(rightStickZone < 0 ? A.NAV_PREVIOUS : A.NAV_NEXT, 'pressed', 'gamepad');
+        }
+        previous.rightStickZone = rightStickZone;
+
+        this._buttonEdge(pad, previous, 0, A.CONFIRM);
+        this._buttonEdge(pad, previous, 9, A.PAUSE);
+        this._buttonEdge(pad, previous, 12, A.NAV_PREVIOUS);
+        this._buttonEdge(pad, previous, 13, A.NAV_NEXT);
+        this.previous[key] = previous;
+      }
+    }
+    _buttonEdge(pad, previous, index, action) {
+      const pressed = !!(pad.buttons[index] && pad.buttons[index].pressed);
+      const wasPressed = !!previous.buttons[index];
+      if (pressed !== wasPressed) this.router.emit(action, pressed ? 'pressed' : 'released', 'gamepad');
+      previous.buttons[index] = pressed;
+    }
+  }
+
   RH.InputRouter = InputRouter;
   RH.KeyboardInputAdapter = KeyboardInputAdapter;
+  RH.PointerPitchInputAdapter = PointerPitchInputAdapter;
   RH.GamepadInputAdapter = GamepadInputAdapter;
-  RH.TouchInputAdapter = TouchInputAdapter;
 })(window);

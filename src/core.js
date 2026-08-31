@@ -4,12 +4,13 @@
   const RH = global.RhythmHero = global.RhythmHero || {};
 
   const ACTIONS = Object.freeze({
-    NOTE_1: 'NOTE_1', NOTE_2: 'NOTE_2', NOTE_3: 'NOTE_3', NOTE_4: 'NOTE_4',
-    NOTE_5: 'NOTE_5', NOTE_6: 'NOTE_6', NOTE_7: 'NOTE_7',
-    NAV_PREVIOUS: 'NAV_PREVIOUS', NAV_NEXT: 'NAV_NEXT', CONFIRM: 'CONFIRM', PAUSE: 'PAUSE'
+    PITCH: 'PITCH',
+    NAV_PREVIOUS: 'NAV_PREVIOUS', NAV_NEXT: 'NAV_NEXT', CONFIRM: 'CONFIRM',
+    OPTION_1: 'OPTION_1', OPTION_2: 'OPTION_2', OPTION_3: 'OPTION_3', OPTION_4: 'OPTION_4',
+    PAUSE: 'PAUSE'
   });
 
-  const WINDOWS = { PERFECT: 0.05, GREAT: 0.10, GOOD: 0.16 };
+  const WINDOWS = { PERFECT: 0.03, GREAT: 0.07, GOOD: 0.12 };
   const SCORE = { PERFECT: 300, GREAT: 200, GOOD: 100, MISS: 0 };
 
   function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
@@ -87,49 +88,51 @@
     }
     reset() {
       this.notes = this.sourceNotes.map((n, i) => Object.assign({ id: n.id || `n${i}`, duration: 0 }, n, {
-        state: 'pending', startedAt: null, releasedAt: null, startGrade: null
+        state: 'pending', pitchSamples: [], liveGrade: null, judged: false
       }));
+      this.isOnPitch = false;
+      this.liveGrade = null;
     }
-    handleAction(action, phase, time) {
-      if (!action || action.indexOf('NOTE_') !== 0) return;
-      if (phase === 'pressed') this._press(action, time);
-      else if (phase === 'released') this._release(action, time);
+    _targetPitch(note) {
+      if (Number.isFinite(note.y)) return clamp(note.y, 0, 1);
+      const index = Math.max(0, Number(String(note.note || '').split('_')[1]) - 1 || 0);
+      return clamp((index + 0.5) / 7, 0, 1);
     }
-    _press(action, time) {
-      const candidates = this.notes.filter(n => n.note === action && n.state === 'pending' && Math.abs(n.time - time) <= WINDOWS.GOOD);
-      if (!candidates.length) return;
-      candidates.sort((a, b) => Math.abs(a.time - time) - Math.abs(b.time - time));
-      const note = candidates[0];
-      const grade = gradeForDelta(time - note.time);
-      note.startGrade = grade;
-      if (note.duration > 0) {
-        note.state = 'holding';
-        note.startedAt = time;
-      } else {
+    update(time, pitch) {
+      this.isOnPitch = false;
+      this.liveGrade = null;
+      const currentPitch = clamp(Number.isFinite(pitch) ? pitch : 0.5, 0, 1);
+      const gradeRank = { PERFECT: 3, GREAT: 2, GOOD: 1, MISS: 0 };
+
+      for (const note of this.notes) {
+        if (note.judged || time < note.time) continue;
+        const duration = Math.max(0, Number(note.duration) || 0);
+        const target = this._targetPitch(note);
+
+        if (duration === 0) {
+          const grade = gradeForDelta(currentPitch - target);
+          note.state = grade === 'MISS' ? 'miss' : 'hit';
+          this._judge(note, grade, time);
+          continue;
+        }
+
+        if (time < note.time + duration) {
+          const delta = Math.abs(currentPitch - target);
+          const grade = gradeForDelta(delta);
+          note.pitchSamples.push(delta);
+          note.liveGrade = grade;
+          note.state = grade === 'MISS' ? 'active' : 'holding';
+          if (grade !== 'MISS') this.isOnPitch = true;
+          if (!this.liveGrade || gradeRank[grade] > gradeRank[this.liveGrade]) this.liveGrade = grade;
+          continue;
+        }
+
+        const averageDelta = note.pitchSamples.length
+          ? note.pitchSamples.reduce((sum, value) => sum + value, 0) / note.pitchSamples.length
+          : Infinity;
+        const grade = gradeForDelta(averageDelta);
         note.state = grade === 'MISS' ? 'miss' : 'hit';
         this._judge(note, grade, time);
-      }
-    }
-    _release(action, time) {
-      const active = this.notes.find(n => n.note === action && n.state === 'holding');
-      if (!active) return;
-      active.releasedAt = time;
-      const targetEnd = active.time + active.duration;
-      const heldFraction = clamp((time - active.time) / active.duration, 0, 1);
-      let grade = active.startGrade;
-      if (heldFraction < 0.55) grade = 'MISS';
-      else if (heldFraction < 0.8 && grade !== 'MISS') grade = 'GOOD';
-      else if (Math.abs(time - targetEnd) > 0.18 && grade === 'PERFECT') grade = 'GREAT';
-      active.state = grade === 'MISS' ? 'miss' : 'hit';
-      this._judge(active, grade, time);
-    }
-    update(time) {
-      for (const note of this.notes) {
-        if (note.state === 'pending' && time > note.time + WINDOWS.GOOD) {
-          note.state = 'miss'; this._judge(note, 'MISS', time);
-        } else if (note.state === 'holding' && time > note.time + note.duration + 0.2) {
-          note.state = 'hit'; this._judge(note, note.startGrade || 'GOOD', time);
-        }
       }
     }
     _judge(note, grade, time) {
@@ -176,6 +179,12 @@
       const event = this.current();
       if (!event) return;
       const options = event.options || [];
+      const directOption = /^OPTION_(\d)$/.exec(action);
+      if (directOption) {
+        const option = options[Number(directOption[1]) - 1];
+        if (option) this.resolve(event, option.id, time);
+        return;
+      }
       if (action === ACTIONS.NAV_PREVIOUS && options.length) event.selectedIndex = (event.selectedIndex - 1 + options.length) % options.length;
       if (action === ACTIONS.NAV_NEXT && options.length) event.selectedIndex = (event.selectedIndex + 1) % options.length;
       if (action === ACTIONS.CONFIRM) {
@@ -204,6 +213,7 @@
       this.bridge = bridge;
       this.score = new ScoreSystem();
       this.state = 'idle';
+      this.pitch = 0.5;
       this.lastJudgement = null;
       this.rhythm = new RhythmSystem(level.notes, this.score, j => this._onJudge(j));
       this.interruptions = new InterruptionSystem(level.events, (type, payload) => this.bridge.emit(type, payload, this.now()));
@@ -211,6 +221,7 @@
     now() { return this.clock.now(); }
     start() {
       this.score.reset(); this.rhythm.reset(); this.interruptions.reset();
+      this.pitch = 0.5;
       this.lastJudgement = null; this.state = 'playing';
       this.clock.start();
       this.bridge.begin(this.level.id);
@@ -219,16 +230,20 @@
     pause() { if (this.state === 'playing') { this.state = 'paused'; this.clock.pause(); this.bridge.emit('game.paused', {}, this.now()); } }
     resume() { if (this.state === 'paused') { this.state = 'playing'; this.clock.resume(); this.bridge.emit('game.resumed', {}, this.now()); } }
     handleInput(evt) {
+      if (evt.action === ACTIONS.PITCH) {
+        this.pitch = clamp(Number.isFinite(evt.pitch) ? evt.pitch : this.pitch, 0, 1);
+        return;
+      }
       if (evt.action === ACTIONS.PAUSE && evt.phase === 'pressed') { this.state === 'playing' ? this.pause() : this.resume(); return; }
       if (this.state !== 'playing') return;
-      this.rhythm.handleAction(evt.action, evt.phase, evt.timestamp);
       this.interruptions.handleAction(evt.action, evt.phase, evt.timestamp);
     }
     update() {
       if (this.state !== 'playing') return;
       const t = this.now();
       this.clock.sync();
-      this.rhythm.update(t);
+      this.rhythm.update(t, this.pitch);
+      this.clock.setVocalFeedback(this.rhythm.liveGrade || 'MISS');
       this.interruptions.update(t);
       const duration = this.clock.duration();
       if ((duration && t >= duration - 0.05) || (this.rhythm.isComplete() && duration && t > duration - 1)) this.complete();
