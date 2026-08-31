@@ -27,25 +27,27 @@ vm.runInNewContext(fs.readFileSync(path.join(root, 'src', 'app.js'), 'utf8'), sa
 
 const classState = {};
 const mouthRoot = {
+  style: {},
   classList: {
     toggle(name, enabled) { classState[name] = enabled; }
   }
 };
 const frame = { src: '' };
 const animator = new sandbox.window.RhythmHero.MouthAnimator(mouthRoot, frame);
-const note = { state: 'pending' };
 const session = {
   state: 'idle',
-  rhythm: { notes: [note] },
+  rhythm: { isOnPitch: false },
   now: () => 0
 };
 
-animator.update(session);
+animator.update(session, { x: 120, y: 240 });
 assert.equal(frame.src, 'assets/mouth/mouth-closed.png');
 assert.equal(classState['is-holding'], false);
+assert.equal(mouthRoot.style.left, '120px');
+assert.equal(mouthRoot.style.top, '240px');
 
 session.state = 'playing';
-note.state = 'holding';
+session.rhythm.isOnPitch = true;
 session.now = () => 0.13;
 animator.update(session);
 assert.equal(frame.src, 'assets/mouth/mouth-half.png');
@@ -55,7 +57,7 @@ session.now = () => 0.25;
 animator.update(session);
 assert.equal(frame.src, 'assets/mouth/mouth-open.png');
 
-note.state = 'hit';
+session.rhythm.isOnPitch = false;
 animator.update(session);
 assert.equal(frame.src, 'assets/mouth/mouth-closed.png');
 assert.equal(classState['is-holding'], false);
