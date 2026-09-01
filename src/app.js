@@ -9,6 +9,98 @@
     'assets/mouth/mouth-half.png'
   ];
 
+  const LYRIC_BOX_ASSET = 'assets/lyric-boxes.png';
+  const LYRIC_BOX_SOURCE = Object.freeze({
+    x: 9, y: 28, width: 1008, height: 353,
+    leftCap: 131, rightCap: 131
+  });
+  const LYRIC_BOX_MIN_WIDTH = 62;
+  const LYRIC_BOX_HEIGHT = 56;
+
+  function lyricBoxGeometry(note, time, hitX, trackWidth, horizon) {
+    const duration = Math.max(0, Number(note.duration) || 0);
+    const startX = hitX + ((note.time - time) / horizon) * trackWidth;
+    const fullWidth = duration > 0
+      ? Math.max(LYRIC_BOX_MIN_WIDTH, duration / horizon * trackWidth)
+      : LYRIC_BOX_MIN_WIDTH;
+    const consumedWidth = Math.max(0, hitX - startX);
+    return {
+      x: Math.max(hitX, startX),
+      width: Math.max(LYRIC_BOX_MIN_WIDTH, fullWidth - consumedWidth)
+    };
+  }
+  RH.lyricBoxGeometry = lyricBoxGeometry;
+
+  class LyricBoxSprite {
+    constructor() {
+      this.image = new Image();
+      this.ready = false;
+      this.image.onload = () => { this.ready = true; };
+      this.image.src = LYRIC_BOX_ASSET;
+    }
+
+    sliceLayout(width, height) {
+      const source = LYRIC_BOX_SOURCE;
+      const naturalLeft = height * source.leftCap / source.height;
+      const naturalRight = height * source.rightCap / source.height;
+      const scale = Math.min(1, width / (naturalLeft + naturalRight));
+      const left = naturalLeft * scale;
+      const right = naturalRight * scale;
+      return { left, middle: Math.max(0, width - left - right), right };
+    }
+
+    draw(ctx, x, centerY, width, height, state) {
+      const source = LYRIC_BOX_SOURCE;
+      const top = centerY - height / 2;
+      const layout = this.sliceLayout(width, height);
+      const isReady = this.ready || (this.image.complete && this.image.naturalWidth > 0);
+
+      ctx.save();
+      if (state === 'holding') {
+        ctx.shadowColor = 'rgba(244, 114, 182, .75)';
+        ctx.shadowBlur = 16;
+        if ('filter' in ctx) ctx.filter = 'brightness(1.12) saturate(1.15)';
+      }
+
+      if (!isReady) {
+        ctx.fillStyle = state === 'holding' ? '#b85cf6' : '#9f54e8';
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        if (ctx.roundRect) ctx.roundRect(x, top, width, height, 9);
+        else ctx.rect(x, top, width, height);
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+        return;
+      }
+
+      ctx.drawImage(
+        this.image,
+        source.x, source.y, source.leftCap, source.height,
+        x, top, layout.left, height
+      );
+
+      if (layout.middle > 0.5) {
+        ctx.drawImage(
+          this.image,
+          source.x + source.leftCap, source.y,
+          source.width - source.leftCap - source.rightCap, source.height,
+          x + layout.left, top, layout.middle, height
+        );
+      }
+
+      ctx.drawImage(
+        this.image,
+        source.x + source.width - source.rightCap, source.y,
+        source.rightCap, source.height,
+        x + width - layout.right, top, layout.right, height
+      );
+      ctx.restore();
+    }
+  }
+  RH.LyricBoxSprite = LyricBoxSprite;
+
   class MouthAnimator {
     constructor(root, frame) {
       this.root = root;
@@ -37,6 +129,7 @@
       this.canvas = canvas;
       this.ctx = canvas.getContext('2d');
       this.level = level;
+      this.lyricBox = new LyricBoxSprite();
       this.lastWidth = 0;
       this.lastHeight = 0;
     }
@@ -96,20 +189,38 @@
         const fallbackIndex = Math.max(0, Number(String(note.note).split('_')[1]) - 1 || 0);
         const notePitch = Number.isFinite(note.y) ? note.y : (fallbackIndex + 0.5) / 7;
         const y = playTop + (playBottom - playTop) * notePitch;
-        const x = hitX + ((note.time - t) / horizon) * (W - hitX - 30);
-        const width = note.duration > 0 ? Math.max(28, note.duration / horizon * (W - hitX - 30)) : 28;
-        const height = note.state === 'holding' ? 24 : 20;
-        ctx.fillStyle = note.state === 'holding' ? '#f472b6' : '#667cff';
+        const trackWidth = W - hitX - 30;
+        const geometry = lyricBoxGeometry(note, t, hitX, trackWidth, horizon);
+        const lyric = note.lyric || this.level.noteMapping[note.note] || '';
+
+        this.lyricBox.draw(
+          ctx,
+          geometry.x,
+          y,
+          geometry.width,
+          LYRIC_BOX_HEIGHT,
+          note.state
+        );
+
+        const horizontalPadding = Math.min(22, geometry.width * 0.18);
+        const textMaxWidth = Math.max(12, geometry.width - horizontalPadding * 2);
+        let fontSize = 16;
+        ctx.save();
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#fff';
+        ctx.shadowColor = 'rgba(24, 8, 41, .7)';
+        ctx.shadowBlur = 3;
+        do {
+          ctx.font = `800 ${fontSize}px system-ui, sans-serif`;
+          if (ctx.measureText(lyric).width <= textMaxWidth || fontSize <= 10) break;
+          fontSize -= 1;
+        } while (fontSize >= 10);
         ctx.beginPath();
-        if (ctx.roundRect) ctx.roundRect(x, y - height / 2, width, height, height / 2);
-        else ctx.rect(x, y - height / 2, width, height);
-        ctx.fill();
-        ctx.fillStyle = '#fff'; ctx.font = '700 14px system-ui, sans-serif';
-        ctx.fillText(this.level.noteMapping[note.note], x + 8, y + 5);
-        if (note.lyric) {
-          ctx.font = '12px system-ui, sans-serif';
-          ctx.fillText(note.lyric, x + 28, y + 5);
-        }
+        ctx.rect(geometry.x + horizontalPadding, y - LYRIC_BOX_HEIGHT / 2 + 7, textMaxWidth, LYRIC_BOX_HEIGHT - 14);
+        ctx.clip();
+        ctx.fillText(lyric, geometry.x + geometry.width / 2, y + 1, textMaxWidth);
+        ctx.restore();
       }
 
       if (session.lastJudgement && t - session.lastJudgement.time < 0.55) {
