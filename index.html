@@ -5,6 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Rhythm Hero MVP</title>
   <link rel="stylesheet" href="style.css" />
+  <link rel="preload" as="image" href="assets/animated-lines-frames/frame-01.png" />
+  <link rel="preload" as="image" href="assets/animated-lines-frames/frame-02.png" />
+  <link rel="preload" as="image" href="assets/animated-lines-frames/frame-03.png" />
+  <link rel="preload" as="image" href="assets/animated-lines-frames/frame-04.png" />
 </head>
 <body>
   <audio id="audio-instrumental" src="Instrumental.mp3" preload="auto"></audio>
@@ -26,6 +30,11 @@
   </section>
 
   <section id="screen-game" class="screen">
+    <div class="game-backdrop" aria-hidden="true">
+      <img class="game-background" src="assets/background.png" alt="" />
+      <div class="comic-lines"></div>
+    </div>
+
     <canvas id="game-canvas"></canvas>
 
     <div id="singing-mouth" aria-hidden="true">
