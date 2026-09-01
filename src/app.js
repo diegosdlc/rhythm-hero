@@ -11,11 +11,11 @@
 
   const LYRIC_BOX_ASSET = 'assets/lyric-boxes.png';
   const LYRIC_BOX_VARIANTS = Object.freeze([
-    { x: 5,   y: 38,  width: 518, height: 187, leftCap: 130, rightCap: 130 },
-    { x: 548, y: 45,  width: 457, height: 185, leftCap: 114, rightCap: 114 },
-    { x: 15,  y: 260, width: 483, height: 190, leftCap: 121, rightCap: 121 },
-    { x: 537, y: 313, width: 420, height: 203, leftCap: 105, rightCap: 105 },
-    { x: 96,  y: 482, width: 391, height: 154, leftCap: 98,  rightCap: 98 }
+    { x: 5,   y: 38,  width: 518, height: 187, leftCap: 200, rightCap: 200, heightScale: 1.00, rotation: -0.010 },
+    { x: 548, y: 45,  width: 457, height: 185, leftCap: 175, rightCap: 175, heightScale: 0.92, rotation:  0.008 },
+    { x: 15,  y: 260, width: 483, height: 190, leftCap: 190, rightCap: 190, heightScale: 1.08, rotation: -0.006 },
+    { x: 537, y: 313, width: 420, height: 203, leftCap: 165, rightCap: 165, heightScale: 1.16, rotation:  0.012 },
+    { x: 96,  y: 482, width: 391, height: 154, leftCap: 155, rightCap: 155, heightScale: 0.88, rotation: -0.014 }
   ]);
   const LYRIC_BOX_MIN_WIDTH = 62;
   const LYRIC_BOX_HEIGHT = 56;
@@ -62,6 +62,11 @@
       return { left, middle: Math.max(0, width - left - right), right };
     }
 
+    heightFor(variantIndex, baseHeight) {
+      const source = LYRIC_BOX_VARIANTS[variantIndex] || LYRIC_BOX_VARIANTS[0];
+      return baseHeight * source.heightScale;
+    }
+
     draw(ctx, x, centerY, width, height, state, variantIndex) {
       const source = LYRIC_BOX_VARIANTS[variantIndex] || LYRIC_BOX_VARIANTS[0];
       const top = centerY - height / 2;
@@ -69,6 +74,12 @@
       const isReady = this.ready || (this.image.complete && this.image.naturalWidth > 0);
 
       ctx.save();
+      if (source.rotation) {
+        const centerX = x + width / 2;
+        ctx.translate(centerX, centerY);
+        ctx.rotate(source.rotation);
+        ctx.translate(-centerX, -centerY);
+      }
       if (state === 'holding') {
         ctx.shadowColor = 'rgba(244, 114, 182, .75)';
         ctx.shadowBlur = 16;
@@ -205,15 +216,17 @@
         const trackWidth = W - hitX - 30;
         const geometry = lyricBoxGeometry(note, t, hitX, trackWidth, horizon);
         const lyric = note.lyric || this.level.noteMapping[note.note] || '';
+        const variantIndex = lyricBoxVariant(note);
+        const boxHeight = this.lyricBox.heightFor(variantIndex, LYRIC_BOX_HEIGHT);
 
         this.lyricBox.draw(
           ctx,
           geometry.x,
           y,
           geometry.width,
-          LYRIC_BOX_HEIGHT,
+          boxHeight,
           note.state,
-          lyricBoxVariant(note)
+          variantIndex
         );
 
         const horizontalPadding = Math.min(22, geometry.width * 0.18);
@@ -231,7 +244,7 @@
           fontSize -= 1;
         } while (fontSize >= 10);
         ctx.beginPath();
-        ctx.rect(geometry.x + horizontalPadding, y - LYRIC_BOX_HEIGHT / 2 + 7, textMaxWidth, LYRIC_BOX_HEIGHT - 14);
+        ctx.rect(geometry.x + horizontalPadding, y - boxHeight / 2 + 7, textMaxWidth, boxHeight - 14);
         ctx.clip();
         ctx.fillText(lyric, geometry.x + geometry.width / 2, y + 1, textMaxWidth);
         ctx.restore();

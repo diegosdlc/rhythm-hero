@@ -50,26 +50,33 @@ assert.equal(
 
 const sprite = new RH.LyricBoxSprite();
 const drawCalls = [];
+const rotationCalls = [];
 const ctx = {
   save() {}, restore() {}, beginPath() {}, rect() {}, fill() {}, stroke() {},
+  translate() {},
+  rotate(value) { rotationCalls.push(value); },
   drawImage(...args) { drawCalls.push(args); },
   set fillStyle(value) {}, set strokeStyle(value) {}, set lineWidth(value) {},
   set shadowColor(value) {}, set shadowBlur(value) {}, filter: 'none'
 };
 
 const layout = sprite.sliceLayout(240, 56, 0);
-assert.ok(layout.left > 38 && layout.left < 39);
-assert.ok(layout.right > 38 && layout.right < 39);
-assert.ok(layout.middle > 162 && layout.middle < 164);
+assert.ok(layout.left > 59 && layout.left < 60);
+assert.ok(layout.right > 59 && layout.right < 60);
+assert.ok(layout.middle > 120 && layout.middle < 121);
+assert.equal(sprite.heightFor(0, 56), 56);
+assert.equal(sprite.heightFor(3, 56), 64.96);
+assert.equal(sprite.heightFor(4, 56), 49.28);
 
 sprite.draw(ctx, 100, 80, 240, 56, 'active', 0);
 assert.equal(drawCalls.length, 3, 'a normal hold uses fixed left/right caps plus a stretchable center');
 assert.equal(drawCalls[0][1], 5);
 assert.equal(drawCalls[0][2], 38);
-assert.equal(drawCalls[0][3], 130);
-assert.equal(drawCalls[2][1], 393);
+assert.equal(drawCalls[0][3], 200);
+assert.equal(drawCalls[2][1], 323);
 assert.equal(drawCalls[0][5], 100);
 assert.equal(drawCalls[2][5] + drawCalls[2][7], 340);
+assert.equal(rotationCalls[0], -0.010);
 
 drawCalls.length = 0;
 sprite.draw(ctx, 0, 40, 30, 56, 'active', 0);
@@ -81,6 +88,7 @@ drawCalls.length = 0;
 sprite.draw(ctx, 10, 60, 240, 56, 'active', 3);
 assert.equal(drawCalls[0][1], 537);
 assert.equal(drawCalls[0][2], 313);
-assert.equal(drawCalls[2][1], 852);
+assert.equal(drawCalls[2][1], 792);
+assert.equal(rotationCalls.at(-1), 0.012);
 
 console.log('lyric box tests passed');
