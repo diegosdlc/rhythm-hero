@@ -40,6 +40,14 @@ assert.equal(halfwayHeld.width, oneSecond.width);
 const veryShort = geometry({ time: 10, duration: 0.05 }, 10, hitX, trackWidth, horizon);
 assert.equal(veryShort.width, 62);
 
+const variants = Array.from({ length: 10 }, (_, index) => RH.lyricBoxVariant({ id: `n${index + 1}` }));
+assert.ok(new Set(variants).size >= 4, 'nearby notes should cycle through most box silhouettes');
+assert.equal(
+  RH.lyricBoxVariant({ id: 'n4', lyric: 'changed copy' }),
+  RH.lyricBoxVariant({ id: 'n4', lyric: 'other copy' }),
+  'the same note must keep its silhouette across frames'
+);
+
 const sprite = new RH.LyricBoxSprite();
 const drawCalls = [];
 const ctx = {
@@ -49,24 +57,30 @@ const ctx = {
   set shadowColor(value) {}, set shadowBlur(value) {}, filter: 'none'
 };
 
-const layout = sprite.sliceLayout(240, 56);
-assert.ok(layout.left > 20 && layout.left < 21);
-assert.ok(layout.right > 20 && layout.right < 21);
-assert.ok(layout.middle > 198 && layout.middle < 200);
+const layout = sprite.sliceLayout(240, 56, 0);
+assert.ok(layout.left > 38 && layout.left < 39);
+assert.ok(layout.right > 38 && layout.right < 39);
+assert.ok(layout.middle > 162 && layout.middle < 164);
 
-sprite.draw(ctx, 100, 80, 240, 56, 'active');
+sprite.draw(ctx, 100, 80, 240, 56, 'active', 0);
 assert.equal(drawCalls.length, 3, 'a normal hold uses fixed left/right caps plus a stretchable center');
-assert.equal(drawCalls[0][1], 9);
-assert.equal(drawCalls[0][2], 28);
-assert.equal(drawCalls[0][3], 131);
-assert.equal(drawCalls[2][1], 886);
+assert.equal(drawCalls[0][1], 5);
+assert.equal(drawCalls[0][2], 38);
+assert.equal(drawCalls[0][3], 130);
+assert.equal(drawCalls[2][1], 393);
 assert.equal(drawCalls[0][5], 100);
 assert.equal(drawCalls[2][5] + drawCalls[2][7], 340);
 
 drawCalls.length = 0;
-sprite.draw(ctx, 0, 40, 30, 56, 'active');
+sprite.draw(ctx, 0, 40, 30, 56, 'active', 0);
 assert.equal(drawCalls.length, 2, 'very short holds collapse the center before deforming the end caps');
 assert.equal(drawCalls[0][7], 15);
 assert.equal(drawCalls[1][7], 15);
+
+drawCalls.length = 0;
+sprite.draw(ctx, 10, 60, 240, 56, 'active', 3);
+assert.equal(drawCalls[0][1], 537);
+assert.equal(drawCalls[0][2], 313);
+assert.equal(drawCalls[2][1], 852);
 
 console.log('lyric box tests passed');

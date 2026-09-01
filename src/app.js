@@ -10,10 +10,13 @@
   ];
 
   const LYRIC_BOX_ASSET = 'assets/lyric-boxes.png';
-  const LYRIC_BOX_SOURCE = Object.freeze({
-    x: 9, y: 28, width: 1008, height: 353,
-    leftCap: 131, rightCap: 131
-  });
+  const LYRIC_BOX_VARIANTS = Object.freeze([
+    { x: 5,   y: 38,  width: 518, height: 187, leftCap: 130, rightCap: 130 },
+    { x: 548, y: 45,  width: 457, height: 185, leftCap: 114, rightCap: 114 },
+    { x: 15,  y: 260, width: 483, height: 190, leftCap: 121, rightCap: 121 },
+    { x: 537, y: 313, width: 420, height: 203, leftCap: 105, rightCap: 105 },
+    { x: 96,  y: 482, width: 391, height: 154, leftCap: 98,  rightCap: 98 }
+  ]);
   const LYRIC_BOX_MIN_WIDTH = 62;
   const LYRIC_BOX_HEIGHT = 56;
 
@@ -31,6 +34,16 @@
   }
   RH.lyricBoxGeometry = lyricBoxGeometry;
 
+  function lyricBoxVariant(note) {
+    const key = String(note.id || note.note || note.lyric || '');
+    let hash = 0;
+    for (let i = 0; i < key.length; i++) {
+      hash = ((hash * 31) + key.charCodeAt(i)) >>> 0;
+    }
+    return hash % LYRIC_BOX_VARIANTS.length;
+  }
+  RH.lyricBoxVariant = lyricBoxVariant;
+
   class LyricBoxSprite {
     constructor() {
       this.image = new Image();
@@ -39,8 +52,8 @@
       this.image.src = LYRIC_BOX_ASSET;
     }
 
-    sliceLayout(width, height) {
-      const source = LYRIC_BOX_SOURCE;
+    sliceLayout(width, height, variantIndex) {
+      const source = LYRIC_BOX_VARIANTS[variantIndex] || LYRIC_BOX_VARIANTS[0];
       const naturalLeft = height * source.leftCap / source.height;
       const naturalRight = height * source.rightCap / source.height;
       const scale = Math.min(1, width / (naturalLeft + naturalRight));
@@ -49,10 +62,10 @@
       return { left, middle: Math.max(0, width - left - right), right };
     }
 
-    draw(ctx, x, centerY, width, height, state) {
-      const source = LYRIC_BOX_SOURCE;
+    draw(ctx, x, centerY, width, height, state, variantIndex) {
+      const source = LYRIC_BOX_VARIANTS[variantIndex] || LYRIC_BOX_VARIANTS[0];
       const top = centerY - height / 2;
-      const layout = this.sliceLayout(width, height);
+      const layout = this.sliceLayout(width, height, variantIndex);
       const isReady = this.ready || (this.image.complete && this.image.naturalWidth > 0);
 
       ctx.save();
@@ -199,7 +212,8 @@
           y,
           geometry.width,
           LYRIC_BOX_HEIGHT,
-          note.state
+          note.state,
+          lyricBoxVariant(note)
         );
 
         const horizontalPadding = Math.min(22, geometry.width * 0.18);
