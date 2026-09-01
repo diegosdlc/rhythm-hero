@@ -69,26 +69,12 @@
       const ctx = this.ctx, W = this.lastWidth, H = this.lastHeight;
       const t = session.now();
       ctx.clearRect(0, 0, W, H);
-      ctx.fillStyle = '#10131a'; ctx.fillRect(0, 0, W, H);
 
       const field = this.playfield();
       const playTop = field.top, playBottom = field.bottom, hitX = field.hitX;
       const horizon = 2.5;
 
-      const gradient = ctx.createLinearGradient(0, playTop, 0, playBottom);
-      gradient.addColorStop(0, '#171d29');
-      gradient.addColorStop(0.5, '#111722');
-      gradient.addColorStop(1, '#171d29');
-      ctx.fillStyle = gradient;
-      ctx.fillRect(0, playTop, W, playBottom - playTop);
-      ctx.strokeStyle = 'rgba(143, 160, 185, .12)';
-      ctx.lineWidth = 1;
-      for (let i = 1; i < 5; i++) {
-        const y = playTop + (playBottom - playTop) * i / 5;
-        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
-      }
-
-      ctx.strokeStyle = 'rgba(241, 245, 249, .9)'; ctx.lineWidth = 2;
+      ctx.strokeStyle = 'rgba(38, 32, 29, .72)'; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.moveTo(hitX, playTop); ctx.lineTo(hitX, playBottom); ctx.stroke();
 
       for (const note of session.rhythm.activeState(t, horizon)) {
